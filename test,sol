@@ -1,0 +1,217 @@
+pragma solidity ^0.5.1;
+//数据库的id没有处理
+//攻击时间的格式问题没有处理
+contract test{
+    //合约管理者
+    address public owner;
+    constructor() public{
+        owner = msg.sender;
+    }
+    
+    function utilCompareInternal(string memory a, string memory b) internal returns (bool) {
+        //字符串比较
+        if (bytes(a).length != bytes(b).length) {
+            return false;
+        }
+        for (uint i = 0; i < bytes(a).length; i ++) {
+            if(bytes(a)[i] != bytes(b)[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+    function strConcat(string memory _a, string memory _b) internal returns (string memory){
+        //字符串拼接
+        bytes memory _ba = bytes(_a);
+        bytes memory _bb = bytes(_b);
+        string memory ret = new string(_ba.length + _bb.length );
+        bytes memory bret = bytes(ret);
+        uint k = 0;
+        for (uint i = 0; i < _ba.length; i++)bret[k++] = _ba[i];
+        for (uint i = 0; i < _bb.length; i++) bret[k++] = _bb[i];
+        return string(ret);
+   }  
+   function str8Concat(string[8] memory data) internal returns(string memory){
+       string memory tem = "";
+       for(uint i = 0;i<8;i++){
+           tem = strConcat(tem,data[i]);
+       }
+       return tem;
+   }
+   
+    function Uint2Bytes(uint256 x) public  returns (bytes memory b) {
+        // b = new bytes(32);
+        // assembly { mstore(add(b, 32), x) }
+        b = bytes("aa");
+    }
+    
+    
+//配给每一个区块链一个负责人
+    //最大监管数量
+    uint constant MAX_BLOCKCHAINS_NUM = 200;
+    uint constant DEFAULF_GRADE = 200;
+    //负责人结构体
+    struct Manager{
+        bool if_exit;
+        string name;
+        uint grade;
+    }
+    //int区块链id数组
+    Manager[MAX_BLOCKCHAINS_NUM] public block_chains_table; 
+    function AddBlockchains(uint _id, string memory _name) public returns(bool) {
+        //添加一个区块链
+        require(msg.sender == owner);
+        if(block_chains_table[_id].if_exit){
+            return false;
+        }
+         block_chains_table[_id].if_exit = true;
+         block_chains_table[_id].name = _name;
+         block_chains_table[_id].grade = DEFAULF_GRADE;
+         return true;
+        // uint count = 0;
+        // for(count = 0;count<MAX_BLOCKCHAINS_NUM;count++){
+        //     if(!block_chains_table[count].if_exit){
+        //         block_chains_table[count].if_exit = true;
+        //         block_chains_table[count].name = _name;
+        //         break;
+        //     }
+        //     if(count == MAX_BLOCKCHAINS_NUM)revert();
+        // }
+    }
+    function DelBlockchains(uint _id) public{
+        //删除一个区块链
+        require(msg.sender == owner);
+        block_chains_table[_id].if_exit = false; 
+    }
+    function DelBlockchains(string memory _name) public{
+        //没处理同名问题
+        //删除一个区块链
+        require(msg.sender == owner);
+        uint count = 0;
+        for(count = 0;count<MAX_BLOCKCHAINS_NUM;count++){
+            if(block_chains_table[count].if_exit&&utilCompareInternal(_name,block_chains_table[count].name)){
+                block_chains_table[count].if_exit = false;
+                break;
+            }
+            if(count == MAX_BLOCKCHAINS_NUM)revert();
+        }
+    }
+    
+    
+    
+    
+    
+//格式化数据
+
+    enum Attack_type{
+        WebAttack,IllegalField,SmartConAttack,fault
+    }
+    struct Code_msg{
+        string key;
+    }
+    struct Link_Data{
+        Attack_type attack_type;
+        uint chain_id;
+        string Node_ip;
+        uint database_key;
+        Code_msg code_msg;
+        uint time;//时间没有处理
+        bytes32 hash;
+    }
+    struct Database_data{
+        Attack_type attack_type;
+        uint chain_id;
+        string Node_ip;
+        uint link_key;//索引等下处理
+        uint attack_time;
+        string attack_way;
+        string attack_ans;
+        string all_detil;
+    }
+    mapping(uint => Link_Data)   attack_chain_data;
+    uint public attack_chain_count  = 0;
+    function attack_handle(string memory _attack_type,uint _block_chains_id,string memory _ip,uint  _attack_time ,string memory _attack_way,string memory _attack_ans,string memory _all_detail) 
+        public {
+        //攻击总处理部分
+        drop_grade(_block_chains_id);
+        if((attack_chain_data[attack_chain_count].attack_type = add_attack_type(_attack_type)) == Attack_type.fault){
+            revert();
+        }
+        //
+        attack_chain_data[attack_chain_count].chain_id = _block_chains_id;
+        attack_chain_data[attack_chain_count].Node_ip = _ip;
+        attack_chain_data[attack_chain_count].time = now;
+        Database_data memory tem_data = get_database_data( _attack_type,_block_chains_id,_ip,_attack_time,_attack_way,_attack_ans,_all_detail);
+        attack_chain_data[attack_chain_count].hash = hash_msg(tem_data);
+        attack_chain_count++;
+    }
+    function get_database_data(string memory _attack_type,uint _block_chains_id,string memory _ip,uint _attack_time,string memory _attack_way,string memory _attack_ans,string memory _all_detail)
+        internal returns (Database_data memory){
+        //获取数据库数据格式
+        Database_data memory tem_data;
+        tem_data.attack_type = add_attack_type(_attack_type);
+        tem_data.chain_id = _block_chains_id;
+        tem_data.Node_ip = _ip;
+        tem_data.link_key = attack_chain_count;
+        tem_data.attack_time = _attack_time;
+        tem_data.attack_way = _attack_way;
+        tem_data.attack_ans = _attack_ans;
+        tem_data.all_detil = _all_detail;
+        return tem_data;
+    }
+    function add_attack_type(string memory _attack_type) internal returns(Attack_type){
+        //字符串转结构体
+        if(utilCompareInternal(_attack_type,"WebAttack")){
+            return Attack_type.WebAttack;
+        }
+        else if(utilCompareInternal(_attack_type,"SmartConAttack")){
+            return Attack_type.SmartConAttack;
+        }
+        else if(utilCompareInternal(_attack_type,"IllegalField")){
+            return Attack_type.IllegalField;
+        }
+        else{
+            return Attack_type.fault;
+        }
+    }
+    
+    function Database_data2string(Attack_type  _data) internal returns( string memory){
+        //结构体转字符串
+        if(_data == Attack_type.WebAttack){
+            return "WebAttack";
+        }
+        else if(_data == Attack_type.SmartConAttack){
+            return "SmartConAttack";
+        }
+        else if(_data == Attack_type.IllegalField){
+            return "IllegalField";
+        }
+        else{
+            return "";
+        }
+        
+    }
+    function hash_msg(Database_data memory _data) internal returns(bytes32){
+        //做哈希
+        string[8] memory part;
+        part[0] = Database_data2string(_data.attack_type);
+        part[1] = string(Uint2Bytes(_data.chain_id));
+        part[2] = _data.Node_ip;
+        part[3] = string(Uint2Bytes(_data.link_key));
+        part[4] = string(Uint2Bytes(_data.attack_time));
+        part[5] = _data.attack_way;
+        part[6] = _data.attack_ans;
+        part[7] = _data.all_detil;
+        string memory ans = str8Concat(part);
+        return keccak256(bytes(ans));
+    }
+    
+
+
+
+//信任度处理
+    function drop_grade(uint _chain_id) internal {
+        if(block_chains_table[_chain_id].grade>0)block_chains_table[_chain_id].grade--;
+    }
+    
+}
